@@ -1,3 +1,6 @@
+import matlab_anbindung
+
+
 class Pendeldaten:
     def __init__(self, g, l_1, l_2, m_1, m_2, theta_1, d_theta_1, theta_2, d_theta_2):
         self.g = g
@@ -14,10 +17,7 @@ class Pendeldaten:
     def y(self):
         return self.theta_2, self.d_theta_2, self.theta_1, self.d_theta_1
 
-    def update_from_res_arr(self, res_arr, i):
-        _, _, _, _, _, theta_1_arr, d_theta_1_arr, theta_2_arr, d_theta_2_arr = res_arr
-        self.theta_1 = theta_1_arr[i]
-        self.d_theta_1 = d_theta_1_arr[i]
-        self.theta_2 = theta_2_arr[i]
-        self.d_theta_2 = d_theta_2_arr[i]
+    def update_from_matlab_res(self, res):
+        _, _, _, _, _, self.theta_1, self.d_theta_1, self.theta_2, self.d_theta_2 = matlab_anbindung.matlab_result\
+            .get_current_item()
 

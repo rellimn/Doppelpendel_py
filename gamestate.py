@@ -31,4 +31,7 @@ class GameState(StateMachine):
     def on_enter_running(self):
         self.running_callback()
 
+    def on_stop_moving_inner_sphere(self):
+        print("Hi")
+
 

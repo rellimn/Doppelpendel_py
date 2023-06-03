@@ -1,11 +1,10 @@
 import pygame
 import pygame_gui
-import numpy as np
-import math
-import matlab.engine
+
+import matlab_anbindung
 from globals import *
 import grafik
-import matlab_anbindung
+import matlab_anbindung as mla
 from gamestate import GameState
 from pendeldaten import Pendeldaten
 
@@ -31,7 +30,7 @@ gui_manager.update(0)
 gui_manager.draw_ui(window_surface)
 pygame.display.update()
 
-matlab_anbindung.start_matlab()
+mla.start_matlab()
 
 start_matlab_text.kill()
 del start_matlab_text
@@ -44,23 +43,21 @@ pygame.display.update()
 clock = pygame.time.Clock()
 
 pendeldaten = Pendeldaten(g_0, l_1_0, l_2_0, m_1_0, m_2_0, theta_1_0, d_theta_1_0, theta_2_0, d_theta_2_0)
-t_arr, x_1_arr, y_1_arr, x_2_arr, y_2_arr, theta_1_arr, d_theta_1_arr, theta_2_arr, d_theta_2_arr\
-    = res = matlab_anbindung.get_new_res_from_matlab(pendeldaten)
+mla.update_from_matlab(pendeldaten)
+t, x_1, y_1, x_2, y_2, theta_1, d_theta_1, theta_2, d_theta_2 = next(mla.matlab_result)
 
-
-state = GameState(pendeldaten, x_1_arr[0], y_1_arr[0], x_2_arr[0], y_2_arr[0])
+state = GameState(pendeldaten, x_1, y_1, x_2, y_2)
 state.running_callback = lambda: print("Still Running")
 
 grafik.update_pendulum_area(window_surface, state.sphere_link)
 
-i = 0
-i_max = len(t_arr)
 time_s = 0
-while not state.ending.is_active and i < i_max:
+while not state.ending.is_active:
+    t, x_1, y_1, x_2, y_2, theta_1, d_theta_1, theta_2, d_theta_2 = mla.matlab_result.get_current_item()
     time_delta = clock.tick() / 1000
     if state.running.is_active:
         time_s += time_delta
-    while time_s < t_arr[i] and state.running.is_active:
+    while time_s < t and state.running.is_active:
         time_delta = clock.tick() / 1000
         time_s += time_delta
 
@@ -90,11 +87,11 @@ while not state.ending.is_active and i < i_max:
 
     # Advance animation if running
     if state.running.is_active or state.starting.is_active:
-        state.pendeldaten.update_from_res_arr(res, i)
-        state.inner_sphere.pos = matlab_anbindung.convert_math_pos_to_sphere_pos(x_1_arr[i], y_1_arr[i])
-        state.outer_sphere.pos = matlab_anbindung.convert_math_pos_to_sphere_pos(x_2_arr[i], y_2_arr[i])
+        state.pendeldaten.update_from_matlab_res(mla.matlab_result)
+        state.inner_sphere.pos = mla.convert_math_pos_to_sphere_pos(x_1, y_1)
+        state.outer_sphere.pos = mla.convert_math_pos_to_sphere_pos(x_2, y_2)
+        next(mla.matlab_result)
 
-        i += 1
     elif state.moving_inner_sphere.is_active:
         mouse_x, mouse_y = mouse_pos = pygame.mouse.get_pos()
         if mouse_x < pendulum_area_width:
