@@ -1,12 +1,13 @@
 import math
 import pygame
-from symbols import *
+from globals import *
 
 
 class Sphere:
     def __init__(self, m, x=0, y=0):
+        self.radius = None
+        self.set_radius_from_m(m)
         self.x_pos, self.y_pos = (x, y)
-        self.radius = math.floor(math.sqrt(m)*sphere_base_radius)
 
     def draw(self, screen, color):
         pygame.draw.circle(screen, color, self.pos, self.radius)
@@ -18,6 +19,13 @@ class Sphere:
     @pos.setter
     def pos(self, value):
         self.x_pos, self.y_pos = value
+
+    def contains_pos(self, pos):
+        x, y = pos
+        return math.sqrt((x - self.x_pos)**2 + (y - self.y_pos)**2) < self.radius
+
+    def set_radius_from_m(self, m):
+        self.radius = math.floor(math.sqrt(m)*sphere_base_radius)
 
 
 class Link:
@@ -32,9 +40,6 @@ class Link:
 
 pendulum_area_rect = pygame.Rect(0, 0, screen_width*3/4, screen_height)
 toolbox_area_rect = pygame.Rect(screen_width*3/4, 0, screen_width/4, screen_height)
-inner_sphere = Sphere(m_1, pendulum_area_center_x + 100, pendulum_area_center_y + 50)
-outer_sphere = Sphere(m_2, pendulum_area_center_x + 20, pendulum_area_center_y - 60)
-link = Link(inner_sphere, outer_sphere)
 
 
 def draw_axes(screen):
@@ -42,17 +47,19 @@ def draw_axes(screen):
     pygame.draw.line(screen, 0x0, (screen_width*3/8, 0), (screen_width*3/8, screen_height))
 
 
-def draw_toolbox_are(screen):
-    pygame.draw.rect(screen, 0x0, toolbox_area_rect)
+def draw_toolbox_area(screen):
+    pygame.draw.rect(screen, 0xFFFFFF, toolbox_area_rect)
+    pygame.draw.line(screen, 0x0, (toolbox_area_rect.x, 0), (toolbox_area_rect.x, toolbox_area_rect.height))
 
 
 def clear_pendulum_area(screen):
     screen.fill(0xFFFFFF, rect=pendulum_area_rect)
 
 
-def update_pendulum_area(screen):
+def update_pendulum_area(screen, sphere_link):
     clear_pendulum_area(screen)
-    link.draw(screen)
+    sphere_link.draw(screen)
     draw_axes(screen)
-    inner_sphere.draw(screen, inner_sphere_color)
-    outer_sphere.draw(screen, outer_sphere_color)
+    sphere_link.inner_sphere.draw(screen, inner_sphere_color)
+    sphere_link.outer_sphere.draw(screen, outer_sphere_color)
+

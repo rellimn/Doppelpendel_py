@@ -3,46 +3,64 @@ import pygame_gui
 import numpy as np
 import math
 import matlab.engine
-from symbols import *
+from globals import *
 import grafik
+import matlab_anbindung
 from gamestate import GameState
+from pendeldaten import Pendeldaten
 
 # Pygame muss vor Matlab gestartet werden
 pygame.init()
-
-eng = matlab.engine.connect_matlab()
-tspan = np.array([tspan_start, tspan_end], dtype=float)
-y0 = np.array([theta_2_0, d_theta_2_0, theta_1_0, d_theta_1_0], dtype=float)
-t, x_1, y_1, x_2, y_2 = res = [np.asarray(x).T[0] for x in eng.doppelpendel(g, l_1, l_2, m_1, m_2, tspan, y0, nargout=5)]
-print(t)
-res_count = len(t)
-eng.quit()
-
-pygame.init()
-pygame.display.set_caption('Quick Start')
+pygame.display.set_caption('Doppelpendel')
 window_surface = pygame.display.set_mode(screen_dimensions, pygame.FULLSCREEN)
 window_surface.fill(0xffffff)
-
-manager = pygame_gui.UIManager(screen_dimensions)
+gui_manager = pygame_gui.UIManager(screen_dimensions, theme_path="ui_theme.json")
 
 
 hello_button_rect = pygame.Rect(screen_width - 100, screen_height - 100, 100, 100)
 hello_button = pygame_gui.elements.UIButton(relative_rect=hello_button_rect,
                                             text='Say Hello',
-                                            manager=manager)
-grafik.update_pendulum_area(window_surface)
+                                            manager=gui_manager)
+start_matlab_text_rect = pygame.Rect(pendulum_area_width/2-110, pendulum_area_height/2-30, 250, 50)
+start_matlab_text = pygame_gui.elements.UILabel(relative_rect=start_matlab_text_rect,
+                                                text="Starte Matlab...",
+                                                manager=gui_manager,
+                                                object_id=pygame_gui.core.ObjectID(class_id="@notification_label",
+                                                                                   object_id="#start_matlab_text"))
+gui_manager.update(0)
+gui_manager.draw_ui(window_surface)
+pygame.display.update()
+
+matlab_anbindung.start_matlab()
+
+start_matlab_text.kill()
+del start_matlab_text
+del start_matlab_text_rect
+gui_manager.update(0)
+gui_manager.draw_ui(window_surface)
+pygame.display.update()
+
 
 clock = pygame.time.Clock()
 
+pendeldaten = Pendeldaten(g_0, l_1_0, l_2_0, m_1_0, m_2_0, theta_1_0, d_theta_1_0, theta_2_0, d_theta_2_0)
+t_arr, x_1_arr, y_1_arr, x_2_arr, y_2_arr, theta_1_arr, d_theta_1_arr, theta_2_arr, d_theta_2_arr\
+    = res = matlab_anbindung.get_new_res_from_matlab(pendeldaten)
+
+
+state = GameState(pendeldaten, x_1_arr[0], y_1_arr[0], x_2_arr[0], y_2_arr[0])
+state.running_callback = lambda: print("Still Running")
+
+grafik.update_pendulum_area(window_surface, state.sphere_link)
+
 i = 0
-i_max = len(t)
+i_max = len(t_arr)
 time_s = 0
-state = GameState()
 while not state.ending.is_active and i < i_max:
     time_delta = clock.tick() / 1000
     if state.running.is_active:
         time_s += time_delta
-    while time_s < t[i] and state.running.is_active:
+    while time_s < t_arr[i] and state.running.is_active:
         time_delta = clock.tick() / 1000
         time_s += time_delta
 
@@ -62,24 +80,31 @@ while not state.ending.is_active and i < i_max:
         if event.type == pygame.MOUSEBUTTONDOWN:
             mouse_x, mouse_y = mouse_pos = pygame.mouse.get_pos()
             if state.paused.is_active:
-                if grafik.inner_sphere.x_pos:
-                    pass
+                if state.paused.is_active and state.inner_sphere.contains_pos(mouse_pos):
+                    state.move_inner_sphere()
+        if event.type == pygame.MOUSEBUTTONUP:
+            if state.moving_inner_sphere.is_active:
+                state.stop_moving_inner_sphere()
 
-        manager.process_events(event)
+        gui_manager.process_events(event)
 
     # Advance animation if running
     if state.running.is_active or state.starting.is_active:
-        x_rel = x_1[i] * pendulum_area_width / 4 + pendulum_area_center_x
-        y_rel = -y_1[i] * pendulum_area_height / 4 + pendulum_area_center_y
-        grafik.inner_sphere.pos = (x_rel, y_rel)
-        x_rel = x_2[i] * pendulum_area_width / 4 + pendulum_area_center_x
-        y_rel = -y_2[i] * pendulum_area_height / 4 + pendulum_area_center_y
-        grafik.outer_sphere.pos = (x_rel, y_rel)
-        grafik.update_pendulum_area(window_surface)
-        i += 1
+        state.pendeldaten.update_from_res_arr(res, i)
+        state.inner_sphere.pos = matlab_anbindung.convert_math_pos_to_sphere_pos(x_1_arr[i], y_1_arr[i])
+        state.outer_sphere.pos = matlab_anbindung.convert_math_pos_to_sphere_pos(x_2_arr[i], y_2_arr[i])
 
-    manager.update(time_delta)
-    manager.draw_ui(window_surface)
+        i += 1
+    elif state.moving_inner_sphere.is_active:
+        mouse_x, mouse_y = mouse_pos = pygame.mouse.get_pos()
+        if mouse_x < pendulum_area_width:
+            state.inner_sphere.pos = mouse_pos
+            #grafik.update_pendulum_area(window_surface)
+
+    grafik.update_pendulum_area(window_surface, state.sphere_link)
+    grafik.draw_toolbox_area(window_surface)
+    gui_manager.update(time_delta)
+    gui_manager.draw_ui(window_surface)
     pygame.display.update()
 
     if state.starting.is_active:
